@@ -41,16 +41,21 @@ export async function GET() {
 
         if (price === 0 || volume24h === 0) return null;
 
-        // Composite score: weights for volume, momentum, OI
-        const volScore = Math.min(volume24h / 1_000_000, 10);
-        const momScore = Math.abs(change24h) * 0.5;
-        const oiScore = Math.min(openInterest / 1_000_000, 5);
-        const score = volScore + momScore + oiScore;
+        // Composite score: turnover activity, funding extremity, momentum, and OI
+        const turnoverRatio = volume24h / Math.max(openInterest, 1);
+        const turnoverScore = Math.min(turnoverRatio, 5) * 2;
+        const fundingScore = Math.min(Math.abs(fundingRate) / 0.1, 1) * 3;
+        const momentumScore = Math.min(Math.abs(change24h) * 0.4, 8);
+        const oiScore = Math.min(openInterest / 500_000_000, 1) * 2;
+        const score = turnoverScore + fundingScore + momentumScore + oiScore;
 
         const tags: string[] = [];
-        if (Math.abs(change24h) > 5) tags.push(change24h > 0 ? "🚀 Pumping" : "📉 Dumping");
+        if (Math.abs(change24h) > 3) tags.push(change24h > 0 ? "🚀 Pumping" : "📉 Dumping");
         if (Math.abs(fundingRate) > 0.05) tags.push(fundingRate > 0 ? "🔥 High Funding" : "❄️ Neg Funding");
-        if (volume24h > 50_000_000) tags.push("💰 High Volume");
+        if (turnoverRatio > 2) tags.push("⚡ High Turnover");
+        if (fundingRate > 0.1) tags.push("🌡️ Overheated");
+        if (fundingRate < -0.1) tags.push("❄️ Short Squeeze Risk");
+        if (volume24h > 30_000_000) tags.push("💰 High Volume");
 
         return {
           symbol: asset.name,
