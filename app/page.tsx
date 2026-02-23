@@ -81,10 +81,17 @@ export default function Home() {
   const [updatedAt, setUpdatedAt] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [countdown, setCountdown] = useState(30);
+  const [manualCooldown, setManualCooldown] = useState(5);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const fetchSignals = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+
     try {
       const res = await fetch("/api/signals");
+      if (!res.ok) throw new Error("Failed to fetch signals");
       const data = await res.json();
       setSignals(data.signals || []);
       setUpdatedAt(data.updatedAt);
@@ -92,15 +99,30 @@ export default function Home() {
     } catch {
       setError(true);
     } finally {
+      setCountdown(30);
+      setManualCooldown(5);
       setLoading(false);
+      setIsRefreshing(false);
     }
   };
 
   useEffect(() => {
     fetchSignals();
-    const interval = setInterval(fetchSignals, 30_000);
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCountdown((prev) => Math.max(prev - 1, 0));
+      setManualCooldown((prev) => Math.max(prev - 1, 0));
+    }, 1_000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (countdown === 0 && !isRefreshing) {
+      fetchSignals();
+    }
+  }, [countdown, isRefreshing]);
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
@@ -114,9 +136,21 @@ export default function Home() {
             Top trending Hyperliquid perps — algo-ranked by volume, momentum & funding
           </p>
           {updatedAt && (
-            <p className="text-zinc-600 text-xs mt-1">
-              Updated {new Date(updatedAt).toLocaleTimeString()} · auto-refreshes every 30s
-            </p>
+            <div className="mt-1 flex items-center gap-2 text-zinc-600 text-xs">
+              <p>
+                Updated {new Date(updatedAt).toLocaleTimeString()} · Refreshing in {countdown}s
+              </p>
+              {manualCooldown === 0 && (
+                <button
+                  type="button"
+                  onClick={fetchSignals}
+                  disabled={isRefreshing}
+                  className="text-zinc-500 hover:text-zinc-300 underline underline-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Refresh now
+                </button>
+              )}
+            </div>
           )}
         </div>
 
